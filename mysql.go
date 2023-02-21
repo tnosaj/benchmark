@@ -42,16 +42,8 @@ type ExecuteMySQL struct {
 func (e ExecuteMySQL) AddUser(u string) error {
 	logrus.Debugf("AddUser: %s", u)
 	timer := prometheus.NewTimer(e.Metrics.DatabaseRequestDuration.WithLabelValues("add"))
-	query := "INSERT INTO users (user_id) values (?)"
 
-	stmt, err := e.Con.Prepare(query)
-	if err != nil {
-		logrus.Errorf("Error %s when preparing SQL statement", err)
-		return err
-	}
-	defer stmt.Close()
-
-	res, err := stmt.Exec(u)
+	res, err := e.Con.Exec(fmt.Sprintf("INSERT INTO users (user_id)values('%s')", u))
 	if err != nil {
 		e.Metrics.DatabaseErrorRequests.WithLabelValues("add").Inc()
 		logrus.Errorf("Failed to insert with error %s", err)
