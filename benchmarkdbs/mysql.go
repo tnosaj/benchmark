@@ -1,11 +1,10 @@
-package main
+package benchmarkdbs
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	mysqlmigrate "github.com/golang-migrate/migrate/v4/database/mysql"
@@ -15,35 +14,17 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type ConnectionInfo struct {
-	User     string
-	Password string
-	HostName string
-	Port     string
-	DBName   string
-	Engine   string
-	PoolSize int
-
-	AutoMigrate        bool
-	SqlMigrationFolder string
-}
-
-type Metrics struct {
-	DatabaseRequestDuration *prometheus.HistogramVec
-	DatabaseErrorRequests   *prometheus.CounterVec
-}
-
 // ExecuteMySQL contains the connection and metrics to track executions
 type ExecuteMySQL struct {
 	Con     *sql.DB
 	Metrics Metrics
 }
 
-func (e ExecuteMySQL) AddUser(u string) error {
-	logrus.Debugf("AddUser: %s", u)
+func (e ExecuteMySQL) Insert(s string) error {
+	logrus.Debugf("AddUser: %s", s)
 	timer := prometheus.NewTimer(e.Metrics.DatabaseRequestDuration.WithLabelValues("add"))
 
-	res, err := e.Con.Exec(fmt.Sprintf("INSERT INTO users (user_id)values('%s')", u))
+	res, err := e.Con.Exec(fmt.Sprintf("INSERT INTO users (user_id)values('%s')", s))
 	if err != nil {
 		e.Metrics.DatabaseErrorRequests.WithLabelValues("add").Inc()
 		logrus.Errorf("Failed to insert with error %s", err)
@@ -56,10 +37,10 @@ func (e ExecuteMySQL) AddUser(u string) error {
 }
 
 // ExecDDLStatement will execute a statement 's' as a DDL
-func (e ExecuteMySQL) GetUserByUserId(userid string) (string, error) {
-	logrus.Debugf("GetUserByUserId: %s", userid)
+func (e ExecuteMySQL) Get(s string) (string, error) {
+	logrus.Debugf("GetUserByUserId: %s", s)
 
-	stmt := fmt.Sprintf("select user_id from users where user_id='%s';", userid)
+	stmt := fmt.Sprintf("select user_id from users where user_id='%s';", s)
 	var returnedUser string
 
 	q := e.Con.QueryRow(stmt)
@@ -93,7 +74,8 @@ func connectMySQL(connectionInfo ConnectionInfo, metrics Metrics) *ExecuteMySQL 
 
 	c.SetMaxIdleConns(connectionInfo.PoolSize)
 	c.SetMaxOpenConns(connectionInfo.PoolSize)
-	c.SetConnMaxLifetime(360 * time.Second)
+	c.SetConnMaxLifetime(0) // reuse forever
+
 	if err = c.Ping(); err != nil {
 		logrus.Fatalf("Could not ping mysql with error %s", err)
 	} else {
@@ -129,7 +111,7 @@ func autoMigrateMysql(conn *sql.DB, folder string) error {
 		return err
 	}
 	m, _ := migrate.NewWithDatabaseInstance(
-		fmt.Sprintf("file://%s/", folder),
+		fmt.Sprintf("file://%s/mysql/", folder),
 		"mysql",
 		driver,
 	)
