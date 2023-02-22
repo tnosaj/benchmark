@@ -1,6 +1,5 @@
 CREATE TABLE IF NOT EXISTS users (
-  user_id varchar(255) PRIMARY KEY,
-  oculus_id    varchar(255) NOT NULL,
-  user_type   varchar(255) NULL
+  id serial primary key,
+  user_id varchar(255)
 );
-CREATE INDEX sessions_oculus_id_idx ON users (user_id);
+CREATE INDEX id_idx ON users (user_id);
